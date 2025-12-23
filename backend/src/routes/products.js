@@ -1,13 +1,13 @@
 import express from "express";
-import prisma from "../backend/lib/prisma.js";
-import { auth } from "../middleware/auth.js";
+import prisma from "../lib/prisma.js";
+
 
 const router = express.Router();
 
 /**
  * CREATE product (this pharmacy only)
  */
-router.post("/", auth, async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { barcode, name, price, stock, expiryDate } = req.body;
 
@@ -31,17 +31,23 @@ router.post("/", auth, async (req, res) => {
 /**
  * LIST products (this pharmacy only)
  */
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const products = await prisma.product.findMany({
-      where: { pharmacyId: req.user.pharmacyId },
-      orderBy: { name: "asc" },
+      include: {
+        pharmacy: true,
+      },
+      orderBy: {
+        id: "desc",
+      },
     });
 
     res.json(products);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch products" });
   }
 });
+
 
 export default router;

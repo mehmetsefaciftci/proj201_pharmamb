@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  STAFF
+}
+
+model Pharmacy {
+  id        Int       @id @default(autoincrement())
+  name      String
+  city      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users     User[]
+  products  Product[]
+
+  @@index([city])
+  @@unique([name, city]) // aynı şehirde aynı isim 2 kere olmasın (opsiyonel ama temiz)
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(STAFF)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  pharmacyId   Int
+  pharmacy     Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+  @@index([role])
+}
+
+model Product {
+  id         Int       @id @default(autoincrement())
+  barcode    String
+  name       String
+  price      Decimal   @db.Decimal(10, 2) // Float yerine para için doğru tip
+  stock      Int       @default(0)
+  expiryDate DateTime? // her üründe zorunlu olmayabilir (opsiyonel)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  pharmacyId Int
+  pharmacy   Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  sales      Sale[]
+
+  // Aynı eczanede aynı barkod tek olmalı
+  @@unique([pharmacyId, barcode])
+  @@index([pharmacyId])
+  @@index([name])
+  @@index([expiryDate])
+}
+
+model Sale {
+  id        Int      @id @default(autoincrement())
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2) // satıldığı anki fiyatı sakla
+  saleDate  DateTime @default(now())
+
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId])
+  @@index([saleDate])
+}
