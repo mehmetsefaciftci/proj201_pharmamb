@@ -4,27 +4,26 @@ import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.js";
 import productRoutes from "./routes/products.js";
-import salesRoutes from "./routes/sales.js"; // 👈 EKLENDİ
+import salesRoutes from "./routes/sales.js";
+import ordersRoutes from "./routes/orders.js";
+import auth from "./middleware/auth.js";
 
 dotenv.config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use("/auth", authRoutes);
-app.use("/products", productRoutes);
-app.use("/sales", salesRoutes); // 👈 EKLENDİ
+app.use("/products", auth, productRoutes);
+app.use("/sales", auth, salesRoutes);
+app.use("/orders", auth, ordersRoutes);
 
-// Health check
 app.get("/", (req, res) => {
   res.send("PharmaMB backend is running");
 });
 
-// Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -12,18 +12,27 @@ enum Role {
   STAFF
 }
 
-model Pharmacy {
-  id        Int       @id @default(autoincrement())
-  name      String
-  city      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+enum OrderStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
 
-  users     User[]
-  products  Product[]
+model Pharmacy {
+  id             Int             @id @default(autoincrement())
+  name           String
+  city           String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  users          User[]
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([city])
-  @@unique([name, city]) // aynı şehirde aynı isim 2 kere olmasın (opsiyonel ama temiz)
+  @@unique([name, city])
 }
 
 model User {
@@ -46,9 +55,9 @@ model Product {
   id         Int       @id @default(autoincrement())
   barcode    String
   name       String
-  price      Decimal   @db.Decimal(10, 2) // Float yerine para için doğru tip
+  price      Decimal   @db.Decimal(10, 2)
   stock      Int       @default(0)
-  expiryDate DateTime? // her üründe zorunlu olmayabilir (opsiyonel)
+  expiryDate DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -57,7 +66,6 @@ model Product {
 
   sales      Sale[]
 
-  // Aynı eczanede aynı barkod tek olmalı
   @@unique([pharmacyId, barcode])
   @@index([pharmacyId])
   @@index([name])
@@ -67,7 +75,7 @@ model Product {
 model Sale {
   id        Int      @id @default(autoincrement())
   quantity  Int
-  unitPrice Decimal  @db.Decimal(10, 2) // satıldığı anki fiyatı sakla
+  unitPrice Decimal  @db.Decimal(10, 2)
   saleDate  DateTime @default(now())
 
   productId Int
@@ -75,4 +83,23 @@ model Sale {
 
   @@index([productId])
   @@index([saleDate])
+}
+
+model PurchaseOrder {
+  id           Int         @id @default(autoincrement())
+  supplierName String
+  status       OrderStatus @default(DRAFT)
+  expectedAt   DateTime?
+  total        Decimal?    @db.Decimal(10, 2)
+  items        Json
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  pharmacyId   Int
+  pharmacy     Pharmacy    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+  @@index([status])
+  @@index([createdAt])
 }

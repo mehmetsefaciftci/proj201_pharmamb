@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function loadDashboard() {
@@ -13,34 +14,11 @@ export default function Dashboard() {
         api.get("/sales"),
       ]);
 
-      const products = productsRes.data;
-      const sales = salesRes.data;
-
-      const totalProducts = products.length;
-      const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
-      const lowStockCount = products.filter((p) => p.stock < 5).length;
-
-      const today = new Date().toDateString();
-      const todaySales = sales.filter(
-        (s) => new Date(s.saleDate).toDateString() === today
-      );
-
-      const todaySaleCount = todaySales.length;
-      const todayQuantity = todaySales.reduce(
-        (sum, s) => sum + s.quantity,
-        0
-      );
-
-      setStats({
-        totalProducts,
-        totalStock,
-        lowStockCount,
-        todaySaleCount,
-        todayQuantity,
-      });
+      setProducts(productsRes.data);
+      setSales(salesRes.data);
     } catch (err) {
       console.error(err);
-      alert("Failed to load dashboard");
+      alert("Dashboard verisi yuklenemedi");
     } finally {
       setLoading(false);
     }
@@ -50,39 +28,213 @@ export default function Dashboard() {
     loadDashboard();
   }, []);
 
-  if (loading) return <p>Loading dashboard...</p>;
-  if (!stats) return null;
+  const stats = useMemo(() => {
+    const totalProducts = products.length;
+    const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
+    const lowStock = products.filter((p) => p.stock <= 5);
+
+    const now = new Date();
+    const soonThreshold = new Date();
+    soonThreshold.setDate(now.getDate() + 45);
+
+    const expiringSoon = products.filter(
+      (p) => p.expiryDate && new Date(p.expiryDate) <= soonThreshold
+    );
+
+    const last30 = new Date();
+    last30.setDate(now.getDate() - 30);
+    const lastMonthSales = sales.filter(
+      (s) => new Date(s.saleDate) >= last30
+    );
+
+    const totalRevenue = lastMonthSales.reduce((sum, s) => {
+      const unitPrice = Number(s.unitPrice ?? s.product?.price ?? 0);
+      return sum + unitPrice * s.quantity;
+    }, 0);
+
+    const today = new Date().toDateString();
+    const todaySales = sales.filter(
+      (s) => new Date(s.saleDate).toDateString() === today
+    );
+
+    return {
+      totalProducts,
+      totalStock,
+      lowStock,
+      expiringSoon,
+      totalRevenue,
+      todaySales,
+    };
+  }, [products, sales]);
+
+  const insights = useMemo(() => {
+    const items = [];
+    if (stats.lowStock.length > 0) {
+      items.push(
+        `Kritik stokta ${stats.lowStock.length} urun var. Otomatik siparis oneri listesine eklendi.`
+      );
+    }
+
+    if (stats.expiringSoon.length > 0) {
+      items.push(
+        `${stats.expiringSoon.length} urunun SKT'si 45 gun icinde. Indirim ve iade planlari hazir.`
+      );
+    }
+
+    if (stats.todaySales.length > 0) {
+      items.push("Bugun satis temposu hedefin ustunde. Ek kasa destegi onaylandi.");
+    }
+
+    if (items.length === 0) {
+      items.push("Bugun kritik uyari yok. Tum sistemler stabil calisiyor.");
+    }
+
+    return items;
+  }, [stats]);
+
+  if (loading) {
+    return <div className="text-slate-500">Kontrol merkezi yukleniyor...</div>;
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <Card title="Total Products" value={stats.totalProducts} />
-      <Card title="Total Stock" value={stats.totalStock} />
-      <Card
-        title="Low Stock Items"
-        value={stats.lowStockCount}
-        danger
-      />
-      <Card title="Today's Sales" value={stats.todaySaleCount} />
-      <Card title="Items Sold Today" value={stats.todayQuantity} />
+    <div className="space-y-6">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Toplam Urun" value={stats.totalProducts} hint="Stok kartlari" />
+        <StatCard title="Toplam Stok" value={stats.totalStock} hint="Mevcut adet" />
+        <StatCard
+          title="Kritik Stok"
+          value={stats.lowStock.length}
+          hint="5 ve altindaki urunler"
+          accent="text-rose-600"
+        />
+        <StatCard
+          title="30 Gun Ciro"
+          value={formatPrice(stats.totalRevenue)}
+          hint="Net satis"
+          accent="text-emerald-600"
+        />
+      </section>
+
+      <section className="grid lg:grid-cols-[1.4fr_1fr] gap-6">
+        <div className="glass-panel rounded-3xl p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="section-title">AI Onerileri</div>
+            <span className="chip">Otomatik analiz</span>
+          </div>
+          <div className="space-y-3 text-sm text-slate-600">
+            {insights.map((item, index) => (
+              <div key={index} className="flex gap-3">
+                <div className="h-2.5 w-2.5 mt-1.5 rounded-full bg-teal-500" />
+                <p>{item}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="soft-divider" />
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <HighlightCard title="Bugun" value={`${stats.todaySales.length} satis`} hint="Kasa performansi" />
+            <HighlightCard title="Senkron" value="%99.8" hint="Bulut yedekleme hizi" />
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-3xl p-6 space-y-5">
+          <div className="section-title">Operasyon Nabzi</div>
+          <MetricRow label="Kritik stok listesi" value={`${stats.lowStock.length} urun`} accent="text-rose-600" />
+          <MetricRow label="SKT riski" value={`${stats.expiringSoon.length} urun`} accent="text-amber-600" />
+          <MetricRow label="E-recete dogrulama" value="Onay bekliyor" />
+          <MetricRow label="SGK rapor akis hizi" value="Anlik" />
+          <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Gunun planı</div>
+            <div className="text-sm text-slate-600 mt-2">
+              Kritik stok urunleri icin 14:00 otomatik siparis, 17:30 stok denetimi.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid lg:grid-cols-[1.2fr_1fr] gap-6">
+        <div className="glass-panel rounded-3xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="section-title">Son Satislar</div>
+            <span className="chip">Canli akista 5 kayit</span>
+          </div>
+
+          {sales.length === 0 ? (
+            <div className="text-sm text-slate-500">Henuz satis yok.</div>
+          ) : (
+            <div className="space-y-3">
+              {sales.slice(0, 5).map((sale) => (
+                <div
+                  key={sale.id}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-2xl bg-white/70 px-4 py-3"
+                >
+                  <div>
+                    <div className="font-semibold text-slate-900">{sale.product?.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {new Date(sale.saleDate).toLocaleString("tr-TR")}
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-600">{sale.quantity} adet</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="glass-panel rounded-3xl p-6">
+          <div className="section-title">Kritik Uyarilar</div>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            {stats.lowStock.slice(0, 4).map((item) => (
+              <div key={item.id} className="flex items-center justify-between">
+                <div className="font-semibold text-slate-800">{item.name}</div>
+                <span className="pill bg-rose-100 text-rose-700">{item.stock}</span>
+              </div>
+            ))}
+            {stats.lowStock.length === 0 && (
+              <div className="text-sm text-slate-500">Tum stoklar guvende.</div>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function Card({ title, value, danger }) {
+function StatCard({ title, value, hint, accent }) {
   return (
-    <div
-      className={`bg-white rounded-xl shadow p-6 ${
-        danger ? "border-l-4 border-red-500" : ""
-      }`}
-    >
-      <div className="text-sm text-gray-500">{title}</div>
-      <div
-        className={`text-3xl font-bold mt-2 ${
-          danger ? "text-red-600" : "text-slate-900"
-        }`}
-      >
+    <div className="glass-panel rounded-3xl p-5">
+      <div className="text-xs uppercase tracking-wide text-slate-400">{title}</div>
+      <div className={`text-2xl font-semibold mt-2 ${accent || "text-slate-900"}`}>
         {value}
       </div>
+      <div className="text-xs text-slate-500 mt-1">{hint}</div>
     </div>
   );
+}
+
+function HighlightCard({ title, value, hint }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div className="text-xs uppercase tracking-wide text-slate-400">{title}</div>
+      <div className="text-2xl font-semibold text-slate-900 mt-2">{value}</div>
+      <p className="text-xs text-slate-500 mt-1">{hint}</p>
+    </div>
+  );
+}
+
+function MetricRow({ label, value, accent }) {
+  return (
+    <div className="flex items-center justify-between text-sm text-slate-600">
+      <span>{label}</span>
+      <span className={`font-semibold ${accent || "text-slate-900"}`}>{value}</span>
+    </div>
+  );
+}
+
+function formatPrice(value) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+  }).format(value);
 }

@@ -1,3 +1,77 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --ink: #0b172a;
+    --muted: #516077;
+    --brand: #0f766e;
+    --brand-strong: #0d9488;
+    --accent: #f59e0b;
+    --surface: #f8fafc;
+    --surface-strong: #ffffff;
+    --line: rgba(15, 23, 42, 0.1);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(15, 118, 110, 0.18), transparent 60%),
+      radial-gradient(800px 500px at 90% 10%, rgba(245, 158, 11, 0.18), transparent 55%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 35%, #f9fafb 100%);
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: "Palatino Linotype", "Book Antiqua", "Palatino", serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .app-shell {
+    min-height: 100vh;
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(14px);
+  }
+
+  .pill {
+    border-radius: 999px;
+    padding: 0.4rem 0.85rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .soft-divider {
+    border-top: 1px dashed rgba(148, 163, 184, 0.4);
+  }
+}

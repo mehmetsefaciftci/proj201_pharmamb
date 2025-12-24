@@ -3,46 +3,40 @@ import prisma from "../lib/prisma.js";
 
 const router = express.Router();
 
-/**
- * POST /sales
- * body: { productId, quantity }
- */
 router.post("/", async (req, res) => {
   const { productId, quantity } = req.body;
+  const parsedProductId = Number(productId);
+  const parsedQuantity = Number(quantity);
 
-  if (!productId || !quantity || quantity <= 0) {
-    return res.status(400).json({ message: "Invalid input" });
+  if (!parsedProductId || !parsedQuantity || parsedQuantity <= 0) {
+    return res.status(400).json({ message: "Gecersiz giris" });
   }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Ürünü bul
-      const product = await tx.product.findUnique({
-        where: { id: productId },
+      const product = await tx.product.findFirst({
+        where: { id: parsedProductId, pharmacyId: req.user.pharmacyId },
       });
 
       if (!product) {
         throw new Error("PRODUCT_NOT_FOUND");
       }
 
-      // 2. Stok kontrolü
-      if (product.stock < quantity) {
+      if (product.stock < parsedQuantity) {
         throw new Error("INSUFFICIENT_STOCK");
       }
 
-      // 3. Stok düş
       await tx.product.update({
-        where: { id: productId },
+        where: { id: product.id },
         data: {
-          stock: product.stock - quantity,
+          stock: product.stock - parsedQuantity,
         },
       });
 
-      // 4. Sale kaydı oluştur
       const sale = await tx.sale.create({
         data: {
           productId: product.id,
-          quantity: quantity,
+          quantity: parsedQuantity,
           unitPrice: product.price,
         },
       });
@@ -51,30 +45,31 @@ router.post("/", async (req, res) => {
     });
 
     res.status(201).json({
-      message: "Sale completed successfully",
+      message: "Satis tamamlandi",
       sale: result,
     });
   } catch (error) {
     if (error.message === "PRODUCT_NOT_FOUND") {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({ message: "Urun bulunamadi" });
     }
 
     if (error.message === "INSUFFICIENT_STOCK") {
-      return res.status(400).json({ message: "Insufficient stock" });
+      return res.status(400).json({ message: "Yetersiz stok" });
     }
 
     console.error(error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Sunucu hatasi" });
   }
 });
 
-/**
- * GET /sales
- * Returns all sales with product info
- */
 router.get("/", async (req, res) => {
   try {
     const sales = await prisma.sale.findMany({
+      where: {
+        product: {
+          pharmacyId: req.user.pharmacyId,
+        },
+      },
       include: {
         product: {
           select: {
@@ -91,9 +86,8 @@ router.get("/", async (req, res) => {
     res.json(sales);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Failed to fetch sales" });
+    res.status(500).json({ message: "Satislar getirilemedi" });
   }
 });
-
 
 export default router;
