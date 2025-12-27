@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import api from "../services/api";
 
-export default function Products() {
+export default function Stock() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [entrySubmitting, setEntrySubmitting] = useState(false);
   const [query, setQuery] = useState("");
   const [showLowStock, setShowLowStock] = useState(false);
   const [showExpiring, setShowExpiring] = useState(false);
@@ -14,7 +15,13 @@ export default function Products() {
     barcode: "",
     price: "",
     stock: "",
+    lowStockThreshold: 5,
     expiryDate: "",
+  });
+
+  const [entryForm, setEntryForm] = useState({
+    productId: "",
+    quantity: 1,
   });
 
   const loadProducts = useCallback(async () => {
@@ -24,7 +31,7 @@ export default function Products() {
       setProducts(res.data);
     } catch (error) {
       console.error(error);
-      alert("Urunler yuklenemedi");
+      alert("Stok verisi yuklenemedi");
     } finally {
       setLoading(false);
     }
@@ -44,9 +51,8 @@ export default function Products() {
         barcode: form.barcode,
         price: Number(form.price),
         stock: Number(form.stock),
-        expiryDate: form.expiryDate
-          ? new Date(form.expiryDate).toISOString()
-          : null,
+        lowStockThreshold: Number(form.lowStockThreshold || 5),
+        expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
       });
 
       setForm({
@@ -54,6 +60,7 @@ export default function Products() {
         barcode: "",
         price: "",
         stock: "",
+        lowStockThreshold: 5,
         expiryDate: "",
       });
 
@@ -66,13 +73,32 @@ export default function Products() {
     }
   }
 
+  async function addStockEntry(e) {
+    e.preventDefault();
+    setEntrySubmitting(true);
+
+    try {
+      await api.post("/stock/entry", {
+        productId: Number(entryForm.productId),
+        quantity: Number(entryForm.quantity),
+      });
+      setEntryForm({ productId: "", quantity: 1 });
+      await loadProducts();
+    } catch (error) {
+      console.error(error);
+      alert("Stok girisi basarisiz");
+    } finally {
+      setEntrySubmitting(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     return products.filter((product) => {
       const matchesQuery =
         product.name.toLowerCase().includes(query.toLowerCase()) ||
         product.barcode.toLowerCase().includes(query.toLowerCase());
 
-      const lowStock = !showLowStock || product.stock <= 5;
+      const lowStock = !showLowStock || product.stock <= product.lowStockThreshold;
       const expiring =
         !showExpiring ||
         (product.expiryDate &&
@@ -85,7 +111,7 @@ export default function Products() {
 
   const totals = useMemo(() => {
     const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
-    const lowStock = products.filter((p) => p.stock <= 5).length;
+    const lowStock = products.filter((p) => p.stock <= p.lowStockThreshold).length;
     return { totalStock, lowStock };
   }, [products]);
 
@@ -96,7 +122,7 @@ export default function Products() {
           <div>
             <div className="section-title">Stok Merkezi</div>
             <p className="text-sm text-slate-500">
-              Urun kartlarini, barkodlari ve SKT planlarini tek panelde yonetin.
+              Urun kartlarini, barkodlari ve SKT takiplerini tek panelde yonetin.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -167,10 +193,21 @@ export default function Products() {
               className="border border-slate-200 rounded-2xl px-3 py-2"
               type="number"
               min="0"
-              placeholder="Stok"
+              placeholder="Baslangic stok"
               value={form.stock}
               onChange={(e) => setForm({ ...form, stock: e.target.value })}
               required
+            />
+
+            <input
+              className="border border-slate-200 rounded-2xl px-3 py-2"
+              type="number"
+              min="1"
+              placeholder="Kritik seviye"
+              value={form.lowStockThreshold}
+              onChange={(e) =>
+                setForm({ ...form, lowStockThreshold: e.target.value })
+              }
             />
 
             <input
@@ -190,14 +227,46 @@ export default function Products() {
           </form>
         </div>
 
-        <div className="glass-panel rounded-3xl p-6 space-y-4">
-          <div className="section-title">Hizli Ozet</div>
-          <SummaryRow label="Kritik stok listesi" value={`${totals.lowStock} urun`} accent="text-rose-600" />
-          <SummaryRow label="SKT riski (45 gun)" value={`${products.filter((p) => p.expiryDate && new Date(p.expiryDate) < new Date(Date.now() + 1000 * 60 * 60 * 24 * 45)).length} urun`} />
-          <SummaryRow label="Ortalama stok" value={products.length ? `${Math.round(totals.totalStock / products.length)} adet` : "0 adet"} />
-          <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
-            AI stok planlayici, kritik urunler icin otomatik tedarik listesi hazirlar.
-          </div>
+        <div className="glass-panel rounded-3xl p-6">
+          <div className="section-title">Stok Girisi</div>
+          <p className="text-sm text-slate-500 mt-2">
+            Mevcut urunler icin manuel stok artisi yapin.
+          </p>
+          <form onSubmit={addStockEntry} className="mt-4 space-y-3">
+            <select
+              className="border border-slate-200 rounded-2xl px-3 py-2 w-full"
+              value={entryForm.productId}
+              onChange={(e) =>
+                setEntryForm({ ...entryForm, productId: e.target.value })
+              }
+              required
+            >
+              <option value="">Urun sec</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.stock} adet)
+                </option>
+              ))}
+            </select>
+            <input
+              className="border border-slate-200 rounded-2xl px-3 py-2 w-full"
+              type="number"
+              min="1"
+              placeholder="Eklenecek adet"
+              value={entryForm.quantity}
+              onChange={(e) =>
+                setEntryForm({ ...entryForm, quantity: e.target.value })
+              }
+              required
+            />
+            <button
+              type="submit"
+              disabled={entrySubmitting}
+              className="rounded-2xl bg-emerald-600 text-white px-4 py-2 font-semibold hover:bg-emerald-700 transition disabled:opacity-50"
+            >
+              {entrySubmitting ? "Isleniyor..." : "Stok ekle"}
+            </button>
+          </form>
         </div>
       </section>
 
@@ -225,7 +294,7 @@ export default function Products() {
               </thead>
               <tbody className="text-slate-700">
                 {filtered.map((product) => {
-                  const isLow = product.stock <= 5;
+                  const isLow = product.stock <= product.lowStockThreshold;
                   const isExpiring =
                     product.expiryDate &&
                     new Date(product.expiryDate) <
@@ -254,7 +323,9 @@ export default function Products() {
                           : "-"}
                       </td>
                       <td>
-                        {isLow && <span className="pill bg-rose-100 text-rose-700">Kritik</span>}
+                        {isLow && (
+                          <span className="pill bg-rose-100 text-rose-700">Kritik</span>
+                        )}
                         {!isLow && isExpiring && (
                           <span className="pill bg-amber-100 text-amber-700">SKT yakin</span>
                         )}
@@ -279,13 +350,4 @@ function formatPrice(value) {
     style: "currency",
     currency: "TRY",
   }).format(value);
-}
-
-function SummaryRow({ label, value, accent }) {
-  return (
-    <div className="flex items-center justify-between text-sm text-slate-600">
-      <span>{label}</span>
-      <span className={`font-semibold ${accent || "text-slate-900"}`}>{value}</span>
-    </div>
-  );
 }

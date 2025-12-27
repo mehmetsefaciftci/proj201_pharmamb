@@ -4,59 +4,91 @@ import prisma from "../lib/prisma.js";
 const router = express.Router();
 
 router.post("/", async (req, res) => {
-  const { productId, quantity } = req.body;
-  const parsedProductId = Number(productId);
-  const parsedQuantity = Number(quantity);
+  const { items, paymentType } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: "Satis kalemi gerekli" });
+  }
 
-  if (!parsedProductId || !parsedQuantity || parsedQuantity <= 0) {
-    return res.status(400).json({ message: "Gecersiz giris" });
+  const normalizedItems = items
+    .map((item) => ({
+      productId: item.productId ? Number(item.productId) : null,
+      barcode: item.barcode ? String(item.barcode).trim() : null,
+      quantity: Number(item.quantity),
+    }))
+    .filter((item) => item.quantity > 0 && (item.productId || item.barcode));
+
+  if (normalizedItems.length === 0) {
+    return res.status(400).json({ message: "Gecersiz urun secimi" });
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({
-        where: { id: parsedProductId, pharmacyId: req.user.pharmacyId },
-      });
+    const allowedPaymentTypes = ["CASH", "CARD", "OTHER"];
+    const safePaymentType = allowedPaymentTypes.includes(paymentType)
+      ? paymentType
+      : "CASH";
 
-      if (!product) {
-        throw new Error("PRODUCT_NOT_FOUND");
-      }
+    const sale = await prisma.$transaction(async (tx) => {
+      const saleItemsData = [];
+      let total = 0;
 
-      if (product.stock < parsedQuantity) {
-        throw new Error("INSUFFICIENT_STOCK");
-      }
+      for (const item of normalizedItems) {
+        const product = await tx.product.findFirst({
+          where: {
+            pharmacyId: req.user.pharmacyId,
+            ...(item.productId ? { id: item.productId } : { barcode: item.barcode }),
+          },
+        });
 
-      await tx.product.update({
-        where: { id: product.id },
-        data: {
-          stock: product.stock - parsedQuantity,
-        },
-      });
+        if (!product) {
+          throw new Error("PRODUCT_NOT_FOUND");
+        }
 
-      const sale = await tx.sale.create({
-        data: {
+        if (product.stock < item.quantity) {
+          throw new Error("INSUFFICIENT_STOCK");
+        }
+
+        const lineTotal = Number(product.price) * item.quantity;
+        total += lineTotal;
+
+        saleItemsData.push({
           productId: product.id,
-          quantity: parsedQuantity,
+          quantity: item.quantity,
           unitPrice: product.price,
+          lineTotal,
+        });
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: { stock: product.stock - item.quantity },
+        });
+      }
+
+      const createdSale = await tx.sale.create({
+        data: {
+          total,
+          paymentType: safePaymentType,
+          pharmacyId: req.user.pharmacyId,
+          userId: req.user.userId,
+          items: { create: saleItemsData },
+        },
+        include: {
+          items: {
+            include: { product: { select: { name: true, barcode: true } } },
+          },
         },
       });
 
-      return sale;
+      return createdSale;
     });
 
-    res.status(201).json({
-      message: "Satis tamamlandi",
-      sale: result,
-    });
+    res.status(201).json(sale);
   } catch (error) {
     if (error.message === "PRODUCT_NOT_FOUND") {
       return res.status(404).json({ message: "Urun bulunamadi" });
     }
-
     if (error.message === "INSUFFICIENT_STOCK") {
       return res.status(400).json({ message: "Yetersiz stok" });
     }
-
     console.error(error);
     res.status(500).json({ message: "Sunucu hatasi" });
   }
@@ -65,28 +97,143 @@ router.post("/", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const sales = await prisma.sale.findMany({
-      where: {
-        product: {
-          pharmacyId: req.user.pharmacyId,
-        },
-      },
+      where: { pharmacyId: req.user.pharmacyId },
       include: {
-        product: {
-          select: {
-            name: true,
-            price: true,
-          },
+        items: {
+          include: { product: { select: { name: true, barcode: true } } },
         },
+        user: { select: { name: true } },
       },
-      orderBy: {
-        saleDate: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     res.json(sales);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Satislar getirilemedi" });
+  }
+});
+
+router.post("/:id/cancel", async (req, res) => {
+  const saleId = Number(req.params.id);
+  if (!saleId) {
+    return res.status(400).json({ message: "Gecersiz satis" });
+  }
+
+  try {
+    const sale = await prisma.$transaction(async (tx) => {
+      const existing = await tx.sale.findFirst({
+        where: { id: saleId, pharmacyId: req.user.pharmacyId },
+        include: { items: true },
+      });
+
+      if (!existing) {
+        throw new Error("NOT_FOUND");
+      }
+
+      if (existing.status !== "COMPLETED") {
+        throw new Error("INVALID_STATUS");
+      }
+
+      for (const item of existing.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+
+      return tx.sale.update({
+        where: { id: existing.id },
+        data: { status: "CANCELLED" },
+      });
+    });
+
+    res.json(sale);
+  } catch (error) {
+    if (error.message === "NOT_FOUND") {
+      return res.status(404).json({ message: "Satis bulunamadi" });
+    }
+    if (error.message === "INVALID_STATUS") {
+      return res.status(400).json({ message: "Satis zaten iptal/refund" });
+    }
+    console.error(error);
+    res.status(500).json({ message: "Satis iptal edilemedi" });
+  }
+});
+
+router.post("/:id/refund", async (req, res) => {
+  const saleId = Number(req.params.id);
+  if (!saleId) {
+    return res.status(400).json({ message: "Gecersiz satis" });
+  }
+
+  try {
+    const sale = await prisma.$transaction(async (tx) => {
+      const existing = await tx.sale.findFirst({
+        where: { id: saleId, pharmacyId: req.user.pharmacyId },
+        include: { items: true },
+      });
+
+      if (!existing) {
+        throw new Error("NOT_FOUND");
+      }
+
+      if (existing.status !== "COMPLETED") {
+        throw new Error("INVALID_STATUS");
+      }
+
+      for (const item of existing.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+
+      return tx.sale.update({
+        where: { id: existing.id },
+        data: { status: "REFUNDED" },
+      });
+    });
+
+    res.json(sale);
+  } catch (error) {
+    if (error.message === "NOT_FOUND") {
+      return res.status(404).json({ message: "Satis bulunamadi" });
+    }
+    if (error.message === "INVALID_STATUS") {
+      return res.status(400).json({ message: "Satis zaten iptal/refund" });
+    }
+    console.error(error);
+    res.status(500).json({ message: "Iade islemi basarisiz" });
+  }
+});
+
+router.get("/daily-summary", async (req, res) => {
+  const dateParam = req.query.date;
+  const start = dateParam ? new Date(dateParam) : new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(23, 59, 59, 999);
+
+  try {
+    const sales = await prisma.sale.findMany({
+      where: {
+        pharmacyId: req.user.pharmacyId,
+        status: "COMPLETED",
+        createdAt: { gte: start, lte: end },
+      },
+    });
+
+    const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.total), 0);
+
+    res.json({
+      date: start.toISOString(),
+      totalSales: sales.length,
+      totalRevenue,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Gunluk ozet getirilemedi" });
   }
 });
 

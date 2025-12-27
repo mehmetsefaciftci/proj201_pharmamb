@@ -35,7 +35,7 @@ export default function Login({ onLogin }) {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-slate-900">PharmaMB</h1>
-                <p className="text-sm text-slate-500">Akilli eczane otomasyonu</p>
+                <p className="text-sm text-slate-500">Bulut eczane yonetimi</p>
               </div>
             </div>
 
@@ -48,16 +48,15 @@ export default function Login({ onLogin }) {
                   Eczanenizi tek panelden yonetin
                 </h2>
                 <p className="text-sm text-slate-500 mt-3">
-                  Stok, satis, recete ve siparisler anlik senkron. PharmaMB ile her cihazdan
-                  kontrol sizde.
+                  Satis, stok ve e-arsiv faturalarini tek ekranda takip edin.
                 </p>
               </div>
 
               <div className="grid gap-3">
                 {[
-                  "Bulut yedekleme ve veri guvenligi",
-                  "AI destekli stok ve talep ongorusu",
-                  "Medula ve e-Nabiz entegrasyon hedefi",
+                  "Bulut tabanli satis ve stok takibi",
+                  "Hizli barkod ve manuel satis akisi",
+                  "Basit e-arsiv fatura olusturma",
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-3 text-sm text-slate-600">
                     <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
@@ -76,8 +75,7 @@ export default function Login({ onLogin }) {
                     <span className="font-semibold text-slate-900">admin@pharmamb.local</span>
                   </div>
                   <div>
-                    Sifre:{" "}
-                    <span className="font-semibold text-slate-900">Admin123!</span>
+                    Sifre: <span className="font-semibold text-slate-900">Admin123!</span>
                   </div>
                 </div>
               </div>
@@ -106,7 +104,7 @@ export default function Login({ onLogin }) {
                 <label className="text-xs font-semibold text-slate-500">Sifre</label>
                 <input
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Sifreniz"
                   className="w-full border border-slate-200 rounded-2xl px-4 py-3 bg-white/80 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -127,9 +125,9 @@ export default function Login({ onLogin }) {
 
             <div className="soft-divider my-6" />
             <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-              <span className="chip">2FA hazir</span>
-              <span className="chip">ISO 27001 hedefi</span>
-              <span className="chip">99.9% erisim</span>
+              <span className="chip">Guvenli oturum</span>
+              <span className="chip">Bulut yedek</span>
+              <span className="chip">Responsive panel</span>
             </div>
           </div>
         </div>

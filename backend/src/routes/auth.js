@@ -14,7 +14,7 @@ router.post("/register", async (req, res) => {
     const pharmacy = await prisma.pharmacy.create({
       data: {
         name: pharmacyName,
-        city,
+        city: city || null,
       },
     });
 
@@ -23,7 +23,7 @@ router.post("/register", async (req, res) => {
         name,
         email,
         passwordHash: hashedPassword,
-        role,
+        role: role === "PHARMACIST" ? "PHARMACIST" : "STAFF",
         pharmacyId: pharmacy.id,
       },
     });
@@ -41,11 +41,40 @@ router.post("/login", async (req, res) => {
   const demoPassword = process.env.DEMO_ADMIN_PASSWORD || "Admin123!";
 
   if (email === demoEmail && password === demoPassword) {
+    const hashedPassword = await bcrypt.hash(demoPassword, 10);
+    let demoUser = await prisma.user.findUnique({
+      where: { email: demoEmail },
+      include: { pharmacy: true },
+    });
+
+    if (!demoUser) {
+      let demoPharmacy = await prisma.pharmacy.findFirst({
+        where: { name: "Demo Eczane", city: "Istanbul" },
+      });
+
+      if (!demoPharmacy) {
+        demoPharmacy = await prisma.pharmacy.create({
+          data: { name: "Demo Eczane", city: "Istanbul" },
+        });
+      }
+
+      demoUser = await prisma.user.create({
+        data: {
+          name: "Demo Admin",
+          email: demoEmail,
+          passwordHash: hashedPassword,
+          role: "PHARMACIST",
+          pharmacyId: demoPharmacy.id,
+        },
+        include: { pharmacy: true },
+      });
+    }
+
     const token = jwt.sign(
       {
-        userId: 0,
-        role: "OWNER",
-        pharmacyId: 0,
+        userId: demoUser.id,
+        role: demoUser.role,
+        pharmacyId: demoUser.pharmacyId,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
@@ -54,12 +83,12 @@ router.post("/login", async (req, res) => {
     return res.json({
       token,
       user: {
-        id: 0,
-        name: "Demo Admin",
+        id: demoUser.id,
+        name: demoUser.name,
         email: demoEmail,
-        role: "OWNER",
-        pharmacyId: 0,
-        pharmacyName: "Demo Eczane",
+        role: demoUser.role,
+        pharmacyId: demoUser.pharmacyId,
+        pharmacyName: demoUser.pharmacy?.name,
       },
     });
   }
@@ -71,6 +100,10 @@ router.post("/login", async (req, res) => {
 
   if (!user) {
     return res.status(404).json({ error: "Kullanici bulunamadi" });
+  }
+
+  if (!user.isActive) {
+    return res.status(403).json({ error: "Hesap pasif" });
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);

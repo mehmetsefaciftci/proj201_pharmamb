@@ -8,28 +8,44 @@ datasource db {
 }
 
 enum Role {
-  OWNER
+  PHARMACIST
   STAFF
 }
 
-enum OrderStatus {
-  DRAFT
-  SENT
-  PARTIAL
-  RECEIVED
+enum SaleStatus {
+  COMPLETED
   CANCELLED
+  REFUNDED
+}
+
+enum PaymentType {
+  CASH
+  CARD
+  OTHER
+}
+
+enum CashStatus {
+  OPEN
+  CLOSED
+}
+
+enum InvoiceStatus {
+  SENT
+  ERROR
 }
 
 model Pharmacy {
-  id             Int             @id @default(autoincrement())
+  id             Int            @id @default(autoincrement())
   name           String
-  city           String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  city           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   users          User[]
   products       Product[]
-  purchaseOrders PurchaseOrder[]
+  sales          Sale[]
+  invoices       Invoice[]
+  cashRegisters  CashRegister[]
 
   @@index([city])
   @@unique([name, city])
@@ -41,30 +57,35 @@ model User {
   email        String    @unique
   passwordHash String
   role         Role      @default(STAFF)
+  isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   pharmacyId   Int
   pharmacy     Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
+  sales        Sale[]
+  openedCash   CashRegister[] @relation("CashRegisterOpenedBy")
+
   @@index([pharmacyId])
   @@index([role])
 }
 
 model Product {
-  id         Int       @id @default(autoincrement())
-  barcode    String
-  name       String
-  price      Decimal   @db.Decimal(10, 2)
-  stock      Int       @default(0)
-  expiryDate DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                Int       @id @default(autoincrement())
+  barcode           String
+  name              String
+  price             Decimal   @db.Decimal(10, 2)
+  stock             Int       @default(0)
+  lowStockThreshold Int       @default(5)
+  expiryDate        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  pharmacyId Int
-  pharmacy   Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  pharmacyId        Int
+  pharmacy          Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
-  sales      Sale[]
+  saleItems         SaleItem[]
 
   @@unique([pharmacyId, barcode])
   @@index([pharmacyId])
@@ -73,33 +94,71 @@ model Product {
 }
 
 model Sale {
+  id          Int         @id @default(autoincrement())
+  total       Decimal     @db.Decimal(10, 2)
+  paymentType PaymentType @default(CASH)
+  status      SaleStatus  @default(COMPLETED)
+  createdAt   DateTime    @default(now())
+
+  pharmacyId  Int
+  pharmacy    Pharmacy    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  items       SaleItem[]
+  invoice     Invoice?
+
+  @@index([pharmacyId, createdAt])
+  @@index([status])
+}
+
+model SaleItem {
   id        Int      @id @default(autoincrement())
   quantity  Int
   unitPrice Decimal  @db.Decimal(10, 2)
-  saleDate  DateTime @default(now())
+  lineTotal Decimal  @db.Decimal(10, 2)
+
+  saleId    Int
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   productId Int
   product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
+  @@index([saleId])
   @@index([productId])
-  @@index([saleDate])
 }
 
-model PurchaseOrder {
-  id           Int         @id @default(autoincrement())
-  supplierName String
-  status       OrderStatus @default(DRAFT)
-  expectedAt   DateTime?
-  total        Decimal?    @db.Decimal(10, 2)
-  items        Json
-  notes        String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+model CashRegister {
+  id           Int        @id @default(autoincrement())
+  status       CashStatus @default(OPEN)
+  openingCash  Decimal    @db.Decimal(10, 2)
+  closingCash  Decimal?   @db.Decimal(10, 2)
+  openedAt     DateTime   @default(now())
+  closedAt     DateTime?
 
   pharmacyId   Int
-  pharmacy     Pharmacy    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  pharmacy     Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
-  @@index([pharmacyId])
-  @@index([status])
-  @@index([createdAt])
+  openedById   Int
+  openedBy     User       @relation("CashRegisterOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, status])
+}
+
+model Invoice {
+  id         Int           @id @default(autoincrement())
+  invoiceNo  String
+  status     InvoiceStatus @default(SENT)
+  pdfUrl     String?
+  createdAt  DateTime      @default(now())
+
+  pharmacyId Int
+  pharmacy   Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  saleId     Int
+  sale       Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([saleId])
+  @@index([pharmacyId, createdAt])
 }

@@ -11,8 +11,8 @@ const navItems = [
     ),
   },
   {
-    id: "products",
-    label: "Urunler",
+    id: "stock",
+    label: "Stok",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
         <path strokeWidth="1.6" d="M4 7l8-4 8 4v10l-8 4-8-4z" />
@@ -31,19 +31,18 @@ const navItems = [
     ),
   },
   {
-    id: "orders",
-    label: "Siparisler",
+    id: "cash",
+    label: "Kasa",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
-        <path strokeWidth="1.6" d="M3 7h11v10H3z" />
-        <path strokeWidth="1.6" d="M14 10h4l3 3v4h-7z" />
-        <path strokeWidth="1.6" d="M7 17a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM18 17a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
+        <path strokeWidth="1.6" d="M4 7h16v10H4z" />
+        <path strokeWidth="1.6" d="M7 10h4M13 10h4M7 13h10" />
       </svg>
     ),
   },
   {
-    id: "prescriptions",
-    label: "E-Recete",
+    id: "invoices",
+    label: "E-Arsiv",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
         <path strokeWidth="1.6" d="M6 3h9l3 3v15H6z" />
@@ -61,6 +60,16 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    id: "users",
+    label: "Kullanicilar",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
+        <path strokeWidth="1.6" d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" />
+        <path strokeWidth="1.6" d="M4 21a8 8 0 0 1 16 0" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Layout({ page, setPage, children, user, onLogout }) {
@@ -70,6 +79,11 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+  });
+  const isPharmacist = user?.role === "PHARMACIST";
+  const visibleItems = navItems.filter((item) => {
+    if (isPharmacist) return true;
+    return ["dashboard", "sales", "stock"].includes(item.id);
   });
 
   return (
@@ -88,7 +102,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
             </div>
 
             <div className="space-y-2">
-              {navItems.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = page === item.id;
                 return (
                   <button
@@ -131,7 +145,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
                   {activeLabel}
                 </h1>
                 <p className="text-sm text-slate-500 mt-2">
-                  Stok, satis, recete ve siparisler tek panelde senkron calisir.
+                  Satis, stok, e-arsiv ve raporlar tek panelde senkron calisir.
                 </p>
               </div>
 
@@ -144,7 +158,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
                 <label className="relative">
                   <input
                     type="text"
-                    placeholder="Stok, barkod veya recete ara"
+                    placeholder="Stok veya barkod ara"
                     className="w-full sm:w-64 rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </label>
@@ -158,7 +172,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
             </header>
 
             <div className="flex flex-wrap gap-3 md:hidden">
-              {navItems.map((item) => (
+              {visibleItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setPage(item.id)}

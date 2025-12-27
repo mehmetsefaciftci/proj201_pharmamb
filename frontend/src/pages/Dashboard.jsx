@@ -31,7 +31,7 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const totalProducts = products.length;
     const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
-    const lowStock = products.filter((p) => p.stock <= 5);
+    const lowStock = products.filter((p) => p.stock <= p.lowStockThreshold);
 
     const now = new Date();
     const soonThreshold = new Date();
@@ -44,17 +44,16 @@ export default function Dashboard() {
     const last30 = new Date();
     last30.setDate(now.getDate() - 30);
     const lastMonthSales = sales.filter(
-      (s) => new Date(s.saleDate) >= last30
+      (s) => new Date(s.createdAt) >= last30
     );
 
     const totalRevenue = lastMonthSales.reduce((sum, s) => {
-      const unitPrice = Number(s.unitPrice ?? s.product?.price ?? 0);
-      return sum + unitPrice * s.quantity;
+      return sum + Number(s.total || 0);
     }, 0);
 
     const today = new Date().toDateString();
     const todaySales = sales.filter(
-      (s) => new Date(s.saleDate).toDateString() === today
+      (s) => new Date(s.createdAt).toDateString() === today
     );
 
     return {
@@ -70,23 +69,19 @@ export default function Dashboard() {
   const insights = useMemo(() => {
     const items = [];
     if (stats.lowStock.length > 0) {
-      items.push(
-        `Kritik stokta ${stats.lowStock.length} urun var. Otomatik siparis oneri listesine eklendi.`
-      );
+      items.push(`Kritik stokta ${stats.lowStock.length} urun var.`);
     }
 
     if (stats.expiringSoon.length > 0) {
-      items.push(
-        `${stats.expiringSoon.length} urunun SKT'si 45 gun icinde. Indirim ve iade planlari hazir.`
-      );
+      items.push(`${stats.expiringSoon.length} urunun SKT'si 45 gun icinde.`);
     }
 
     if (stats.todaySales.length > 0) {
-      items.push("Bugun satis temposu hedefin ustunde. Ek kasa destegi onaylandi.");
+      items.push("Bugun satis hareketi devam ediyor.");
     }
 
     if (items.length === 0) {
-      items.push("Bugun kritik uyari yok. Tum sistemler stabil calisiyor.");
+      items.push("Bugun kritik uyari yok. Tum sistemler stabil.");
     }
 
     return items;
@@ -104,7 +99,7 @@ export default function Dashboard() {
         <StatCard
           title="Kritik Stok"
           value={stats.lowStock.length}
-          hint="5 ve altindaki urunler"
+          hint="Kritik seviyedeki urunler"
           accent="text-rose-600"
         />
         <StatCard
@@ -118,8 +113,8 @@ export default function Dashboard() {
       <section className="grid lg:grid-cols-[1.4fr_1fr] gap-6">
         <div className="glass-panel rounded-3xl p-6 space-y-5">
           <div className="flex items-center justify-between">
-            <div className="section-title">AI Onerileri</div>
-            <span className="chip">Otomatik analiz</span>
+            <div className="section-title">Oncelikli Notlar</div>
+            <span className="chip">Gunun ozeti</span>
           </div>
           <div className="space-y-3 text-sm text-slate-600">
             {insights.map((item, index) => (
@@ -134,7 +129,7 @@ export default function Dashboard() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <HighlightCard title="Bugun" value={`${stats.todaySales.length} satis`} hint="Kasa performansi" />
-            <HighlightCard title="Senkron" value="%99.8" hint="Bulut yedekleme hizi" />
+            <HighlightCard title="Senkron" value="%99.8" hint="Bulut calisma durumu" />
           </div>
         </div>
 
@@ -142,12 +137,12 @@ export default function Dashboard() {
           <div className="section-title">Operasyon Nabzi</div>
           <MetricRow label="Kritik stok listesi" value={`${stats.lowStock.length} urun`} accent="text-rose-600" />
           <MetricRow label="SKT riski" value={`${stats.expiringSoon.length} urun`} accent="text-amber-600" />
-          <MetricRow label="E-recete dogrulama" value="Onay bekliyor" />
-          <MetricRow label="SGK rapor akis hizi" value="Anlik" />
+          <MetricRow label="Gunluk satis" value={`${stats.todaySales.length} islem`} />
+          <MetricRow label="Senkron durumu" value="Aktif" />
           <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Gunun planı</div>
+            <div className="text-xs uppercase tracking-wide text-slate-400">Gunun plan</div>
             <div className="text-sm text-slate-600 mt-2">
-              Kritik stok urunleri icin 14:00 otomatik siparis, 17:30 stok denetimi.
+              Kritik stok urunleri icin manuel tedarik kontrolu ve 17:30 stok sayimi.
             </div>
           </div>
         </div>
@@ -170,12 +165,16 @@ export default function Dashboard() {
                   className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-2xl bg-white/70 px-4 py-3"
                 >
                   <div>
-                    <div className="font-semibold text-slate-900">{sale.product?.name}</div>
+                    <div className="font-semibold text-slate-900">
+                      {sale.items?.[0]?.product?.name || "Coklu urun"}
+                    </div>
                     <div className="text-xs text-slate-500">
-                      {new Date(sale.saleDate).toLocaleString("tr-TR")}
+                      {new Date(sale.createdAt).toLocaleString("tr-TR")}
                     </div>
                   </div>
-                  <div className="text-sm text-slate-600">{sale.quantity} adet</div>
+                  <div className="text-sm text-slate-600">
+                    {sale.items?.[0]?.quantity || "-"} adet
+                  </div>
                 </div>
               ))}
             </div>

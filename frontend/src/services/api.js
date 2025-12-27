@@ -12,6 +12,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearSession();
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function storeSession({ token, user }) {
   if (token) {
     localStorage.setItem("pharmamb_token", token);
@@ -27,6 +40,8 @@ export function clearSession() {
 }
 
 export function getStoredUser() {
+  const token = localStorage.getItem("pharmamb_token");
+  if (!token) return null;
   const raw = localStorage.getItem("pharmamb_user");
   if (!raw) return null;
   try {
