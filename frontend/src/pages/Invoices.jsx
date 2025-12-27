@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 
 export default function Invoices() {
-  const apiBase = api.defaults.baseURL || "";
   const [invoices, setInvoices] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +49,19 @@ export default function Invoices() {
       alert("Fatura olusturulamadi");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function previewInvoice(invoiceId) {
+    try {
+      const res = await api.get(`/invoices/${invoiceId}/pdf`, {
+        responseType: "blob",
+      });
+      const blobUrl = URL.createObjectURL(res.data);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      alert("PDF onizleme basarisiz");
     }
   }
 
@@ -113,14 +125,13 @@ export default function Invoices() {
                     <td>{invoice.status === "ERROR" ? "Hata" : "Gonderildi"}</td>
                     <td>
                       {invoice.pdfUrl ? (
-                        <a
-                          href={`${apiBase}${invoice.pdfUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => previewInvoice(invoice.id)}
                           className="text-xs px-2 py-1 rounded-xl bg-slate-100 text-slate-700"
                         >
                           Onizle
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-xs text-slate-400">Hazir degil</span>
                       )}
