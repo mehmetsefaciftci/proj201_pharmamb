@@ -34,6 +34,22 @@ enum InvoiceStatus {
   ERROR
 }
 
+enum ProductType {
+  GENERAL
+  ANTIBIOTIC
+}
+
+enum PrescriptionStatus {
+  VERIFIED
+  PENDING
+}
+
+enum EfaturaStatus {
+  DRAFT
+  SENT
+  ERROR
+}
+
 model Pharmacy {
   id             Int            @id @default(autoincrement())
   name           String
@@ -45,7 +61,10 @@ model Pharmacy {
   products       Product[]
   sales          Sale[]
   invoices       Invoice[]
+  efaturas       Efatura[]
   cashRegisters  CashRegister[]
+  prescriptions  Prescription[]
+  heldSales      HeldSale[]
 
   @@index([city])
   @@unique([name, city])
@@ -66,6 +85,8 @@ model User {
 
   sales        Sale[]
   openedCash   CashRegister[] @relation("CashRegisterOpenedBy")
+  prescriptions Prescription[]
+  heldSales     HeldSale[]
 
   @@index([pharmacyId])
   @@index([role])
@@ -74,10 +95,12 @@ model User {
 model Product {
   id                Int       @id @default(autoincrement())
   barcode           String
+  qrCode            String?
   name              String
   price             Decimal   @db.Decimal(10, 2)
   stock             Int       @default(0)
   lowStockThreshold Int       @default(5)
+  productType       ProductType @default(GENERAL)
   expiryDate        DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -86,8 +109,10 @@ model Product {
   pharmacy          Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
   saleItems         SaleItem[]
+  heldSaleItems     HeldSaleItem[]
 
   @@unique([pharmacyId, barcode])
+  @@unique([pharmacyId, qrCode])
   @@index([pharmacyId])
   @@index([name])
   @@index([expiryDate])
@@ -106,11 +131,74 @@ model Sale {
   userId      Int
   user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  prescriptionId Int?
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+
   items       SaleItem[]
   invoice     Invoice?
+  efatura     Efatura?
 
   @@index([pharmacyId, createdAt])
   @@index([status])
+}
+
+model HeldSale {
+  id             Int       @id @default(autoincrement())
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  pharmacyId     Int
+  pharmacy       Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  createdById    Int
+  createdBy      User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  prescriptionId Int?
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+
+  items          HeldSaleItem[]
+
+  @@index([pharmacyId, createdAt])
+}
+
+model HeldSaleItem {
+  id         Int      @id @default(autoincrement())
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  lineTotal  Decimal  @db.Decimal(10, 2)
+
+  heldSaleId Int
+  heldSale   HeldSale @relation(fields: [heldSaleId], references: [id], onDelete: Cascade)
+
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([heldSaleId])
+  @@index([productId])
+}
+
+model Prescription {
+  id              Int                @id @default(autoincrement())
+  patientTc       String
+  prescriptionNo  String
+  status          PrescriptionStatus @default(VERIFIED)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  pharmacyId      Int
+  pharmacy        Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  createdById     Int
+  createdBy       User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  sales           Sale[]
+  heldSales       HeldSale[]
+
+  @@unique([pharmacyId, patientTc, prescriptionNo])
+  @@index([pharmacyId])
+  @@index([prescriptionNo])
+  @@index([patientTc])
 }
 
 model SaleItem {
@@ -150,6 +238,23 @@ model Invoice {
   id         Int           @id @default(autoincrement())
   invoiceNo  String
   status     InvoiceStatus @default(SENT)
+  pdfUrl     String?
+  createdAt  DateTime      @default(now())
+
+  pharmacyId Int
+  pharmacy   Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  saleId     Int
+  sale       Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([saleId])
+  @@index([pharmacyId, createdAt])
+}
+
+model Efatura {
+  id         Int           @id @default(autoincrement())
+  invoiceNo  String
+  status     EfaturaStatus @default(DRAFT)
   pdfUrl     String?
   createdAt  DateTime      @default(now())
 

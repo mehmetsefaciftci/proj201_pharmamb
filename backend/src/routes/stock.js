@@ -19,6 +19,7 @@ router.get("/", async (req, res) => {
 router.post("/entry", async (req, res) => {
   const { productId, barcode, quantity } = req.body;
   const parsedQty = Number(quantity);
+  const code = barcode ? String(barcode).trim() : "";
 
   if (!parsedQty || parsedQty <= 0) {
     return res.status(400).json({ message: "Gecersiz miktar" });
@@ -32,7 +33,9 @@ router.post("/entry", async (req, res) => {
     const product = await prisma.product.findFirst({
       where: {
         pharmacyId: req.user.pharmacyId,
-        ...(productId ? { id: Number(productId) } : { barcode: String(barcode) }),
+        ...(productId
+          ? { id: Number(productId) }
+          : { OR: [{ barcode: code }, { qrCode: code }] }),
       },
     });
 

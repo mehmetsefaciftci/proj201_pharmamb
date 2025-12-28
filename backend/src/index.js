@@ -9,7 +9,10 @@ import usersRoutes from "./routes/users.js";
 import stockRoutes from "./routes/stock.js";
 import cashRoutes from "./routes/cash.js";
 import invoiceRoutes from "./routes/invoices.js";
+import efaturaRoutes from "./routes/efatura.js";
 import reportRoutes from "./routes/reports.js";
+import prescriptionRoutes from "./routes/prescriptions.js";
+import integrationRoutes from "./routes/integrations.js";
 import auth from "./middleware/auth.js";
 import prisma from "./lib/prisma.js";
 import bcrypt from "bcrypt";
@@ -28,7 +31,10 @@ app.use("/users", auth, usersRoutes);
 app.use("/stock", auth, stockRoutes);
 app.use("/cash", auth, cashRoutes);
 app.use("/invoices", auth, invoiceRoutes);
+app.use("/efatura", auth, efaturaRoutes);
 app.use("/reports", auth, reportRoutes);
+app.use("/prescriptions", auth, prescriptionRoutes);
+app.use("/integrations", auth, integrationRoutes);
 
 app.get("/", (req, res) => {
   res.send("PharmaMB backend is running");

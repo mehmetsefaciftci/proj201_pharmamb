@@ -9,14 +9,17 @@ export default function Stock() {
   const [query, setQuery] = useState("");
   const [showLowStock, setShowLowStock] = useState(false);
   const [showExpiring, setShowExpiring] = useState(false);
+  const [lookupNote, setLookupNote] = useState("");
 
   const [form, setForm] = useState({
     name: "",
     barcode: "",
+    qrCode: "",
     price: "",
     stock: "",
     lowStockThreshold: 5,
     expiryDate: "",
+    productType: "GENERAL",
   });
 
   const [entryForm, setEntryForm] = useState({
@@ -41,6 +44,47 @@ export default function Stock() {
     loadProducts();
   }, [loadProducts]);
 
+  useEffect(() => {
+    const code = form.barcode.trim() || form.qrCode.trim();
+    if (!code) {
+      setLookupNote("");
+      return () => {};
+    }
+
+    let active = true;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await api.get("/products/lookup", { params: { code } });
+        if (!active) return;
+        setLookupNote("Mevcut urun bulundu, alanlar otomatik dolduruldu.");
+        setForm((prev) => ({
+          ...prev,
+          name: prev.name || res.data.name || "",
+          price: prev.price || (res.data.price != null ? String(res.data.price) : ""),
+          productType:
+            prev.productType === "GENERAL"
+              ? res.data.productType || "GENERAL"
+              : prev.productType,
+          lowStockThreshold:
+            prev.lowStockThreshold || res.data.lowStockThreshold || 5,
+          qrCode: prev.qrCode || res.data.qrCode || prev.qrCode,
+        }));
+      } catch (error) {
+        if (!active) return;
+        if (error?.response?.status === 404) {
+          setLookupNote("Yeni urun icin kayit acabilirsiniz.");
+        } else {
+          setLookupNote("Urun bilgisi alinmadi.");
+        }
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [form.barcode, form.qrCode]);
+
   async function addProduct(e) {
     e.preventDefault();
     setSubmitting(true);
@@ -49,19 +93,23 @@ export default function Stock() {
       await api.post("/products", {
         name: form.name,
         barcode: form.barcode,
+        qrCode: form.qrCode,
         price: Number(form.price),
         stock: Number(form.stock),
         lowStockThreshold: Number(form.lowStockThreshold || 5),
+        productType: form.productType,
         expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
       });
 
       setForm({
         name: "",
         barcode: "",
+        qrCode: "",
         price: "",
         stock: "",
         lowStockThreshold: 5,
         expiryDate: "",
+        productType: "GENERAL",
       });
 
       await loadProducts();
@@ -96,7 +144,8 @@ export default function Stock() {
     return products.filter((product) => {
       const matchesQuery =
         product.name.toLowerCase().includes(query.toLowerCase()) ||
-        product.barcode.toLowerCase().includes(query.toLowerCase());
+        product.barcode.toLowerCase().includes(query.toLowerCase()) ||
+        (product.qrCode || "").toLowerCase().includes(query.toLowerCase());
 
       const lowStock = !showLowStock || product.stock <= product.lowStockThreshold;
       const expiring =
@@ -134,7 +183,7 @@ export default function Stock() {
 
         <div className="mt-5 grid lg:grid-cols-[1fr_auto] gap-3">
           <input
-            placeholder="Urun veya barkod ara"
+            placeholder="Urun, barkod veya karekod ara"
             className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -161,7 +210,7 @@ export default function Stock() {
           <div className="section-title">Yeni Urun Karti</div>
           <form
             onSubmit={addProduct}
-            className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3"
+            className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3"
           >
             <input
               className="border border-slate-200 rounded-2xl px-3 py-2"
@@ -176,6 +225,14 @@ export default function Stock() {
               placeholder="Barkod"
               value={form.barcode}
               onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+              required
+            />
+
+            <input
+              className="border border-slate-200 rounded-2xl px-3 py-2"
+              placeholder="Karekod"
+              value={form.qrCode}
+              onChange={(e) => setForm({ ...form, qrCode: e.target.value })}
               required
             />
 
@@ -210,6 +267,15 @@ export default function Stock() {
               }
             />
 
+            <select
+              className="border border-slate-200 rounded-2xl px-3 py-2"
+              value={form.productType}
+              onChange={(e) => setForm({ ...form, productType: e.target.value })}
+            >
+              <option value="GENERAL">Genel</option>
+              <option value="ANTIBIOTIC">Antibiyotik</option>
+            </select>
+
             <input
               className="border border-slate-200 rounded-2xl px-3 py-2"
               type="date"
@@ -220,11 +286,14 @@ export default function Stock() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-2xl bg-teal-600 text-white px-4 py-2 font-semibold hover:bg-teal-700 transition disabled:opacity-50"
+              className="lg:col-span-4 rounded-2xl bg-teal-600 text-white px-4 py-2 font-semibold hover:bg-teal-700 transition disabled:opacity-50"
             >
               {submitting ? "Kaydediliyor..." : "Kaydet"}
             </button>
           </form>
+          {lookupNote && (
+            <div className="mt-3 text-xs text-slate-500">{lookupNote}</div>
+          )}
         </div>
 
         <div className="glass-panel rounded-3xl p-6">
@@ -286,9 +355,11 @@ export default function Stock() {
                 <tr>
                   <th className="pb-3">Urun</th>
                   <th className="pb-3">Barkod</th>
+                  <th className="pb-3">Karekod</th>
                   <th className="pb-3">Fiyat</th>
                   <th className="pb-3">Stok</th>
                   <th className="pb-3">SKT</th>
+                  <th className="pb-3">Tip</th>
                   <th className="pb-3">Durum</th>
                 </tr>
               </thead>
@@ -305,6 +376,7 @@ export default function Stock() {
                         {product.name}
                       </td>
                       <td>{product.barcode}</td>
+                      <td>{product.qrCode || "-"}</td>
                       <td>{formatPrice(product.price)}</td>
                       <td>
                         <span
@@ -322,6 +394,7 @@ export default function Stock() {
                           ? new Date(product.expiryDate).toLocaleDateString("tr-TR")
                           : "-"}
                       </td>
+                      <td>{product.productType === "ANTIBIOTIC" ? "Antibiyotik" : "Genel"}</td>
                       <td>
                         {isLow && (
                           <span className="pill bg-rose-100 text-rose-700">Kritik</span>

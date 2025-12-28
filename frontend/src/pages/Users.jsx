@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import api from "../services/api";
+import api, { getStoredUser } from "../services/api";
 
 export default function Users() {
+  const [currentUser] = useState(() => getStoredUser());
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +52,17 @@ export default function Users() {
     } catch (error) {
       console.error(error);
       alert("Kullanici guncellenemedi");
+    }
+  }
+
+  async function deleteUser(userId) {
+    if (!window.confirm("Kullanici silinsin mi?")) return;
+    try {
+      await api.delete(`/users/${userId}`);
+      await loadUsers();
+    } catch (error) {
+      console.error(error);
+      alert("Kullanici silinemedi");
     }
   }
 
@@ -115,6 +127,7 @@ export default function Users() {
                   <th className="pb-3">E-posta</th>
                   <th className="pb-3">Rol</th>
                   <th className="pb-3">Durum</th>
+                  <th className="pb-3">Islem</th>
                 </tr>
               </thead>
               <tbody className="text-slate-700">
@@ -140,6 +153,15 @@ export default function Users() {
                         }`}
                       >
                         {user.isActive ? "Aktif" : "Pasif"}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => deleteUser(user.id)}
+                        disabled={currentUser?.id === user.id}
+                        className="text-xs px-2 py-1 rounded-xl bg-slate-200 text-slate-700 disabled:opacity-50"
+                      >
+                        Sil
                       </button>
                     </td>
                   </tr>

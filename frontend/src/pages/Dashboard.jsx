@@ -44,7 +44,7 @@ export default function Dashboard() {
     const last30 = new Date();
     last30.setDate(now.getDate() - 30);
     const lastMonthSales = sales.filter(
-      (s) => new Date(s.createdAt) >= last30
+      (s) => s.status === "COMPLETED" && new Date(s.createdAt) >= last30
     );
 
     const totalRevenue = lastMonthSales.reduce((sum, s) => {
@@ -53,7 +53,7 @@ export default function Dashboard() {
 
     const today = new Date().toDateString();
     const todaySales = sales.filter(
-      (s) => new Date(s.createdAt).toDateString() === today
+      (s) => s.status === "COMPLETED" && new Date(s.createdAt).toDateString() === today
     );
 
     return {
@@ -172,8 +172,14 @@ export default function Dashboard() {
                       {new Date(sale.createdAt).toLocaleString("tr-TR")}
                     </div>
                   </div>
-                  <div className="text-sm text-slate-600">
-                    {sale.items?.[0]?.quantity || "-"} adet
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <span>{sale.items?.[0]?.quantity || "-"} adet</span>
+                    {sale.status === "CANCELLED" && (
+                      <span className="text-xs text-rose-600">(Iptal edildi)</span>
+                    )}
+                    {sale.status === "REFUNDED" && (
+                      <span className="text-xs text-amber-600">(Iade edildi)</span>
+                    )}
                   </div>
                 </div>
               ))}

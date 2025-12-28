@@ -31,6 +31,16 @@ const navItems = [
     ),
   },
   {
+    id: "medula",
+    label: "Medula",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
+        <path strokeWidth="1.6" d="M6 4h12v16H6z" />
+        <path strokeWidth="1.6" d="M8 8h8M8 12h8M8 16h5" />
+      </svg>
+    ),
+  },
+  {
     id: "cash",
     label: "Kasa",
     icon: (
@@ -51,12 +61,32 @@ const navItems = [
     ),
   },
   {
+    id: "efatura",
+    label: "E-Fatura",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
+        <path strokeWidth="1.6" d="M6 3h12l2 3v15H6z" />
+        <path strokeWidth="1.6" d="M9 9h6M9 13h6M9 17h4" />
+      </svg>
+    ),
+  },
+  {
     id: "reports",
     label: "Raporlar",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
         <path strokeWidth="1.6" d="M4 19h16" />
         <path strokeWidth="1.6" d="M7 16V8m5 8V5m5 11v-6" />
+      </svg>
+    ),
+  },
+  {
+    id: "audit",
+    label: "Denetim",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
+        <path strokeWidth="1.6" d="M4 4h10l6 6v10H4z" />
+        <path strokeWidth="1.6" d="M8 13h8M8 17h5" />
       </svg>
     ),
   },
@@ -83,7 +113,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
   const isPharmacist = user?.role === "PHARMACIST";
   const visibleItems = navItems.filter((item) => {
     if (isPharmacist) return true;
-    return ["dashboard", "sales", "stock"].includes(item.id);
+    return ["dashboard", "sales", "stock", "medula"].includes(item.id);
   });
 
   return (
@@ -145,7 +175,7 @@ export default function Layout({ page, setPage, children, user, onLogout }) {
                   {activeLabel}
                 </h1>
                 <p className="text-sm text-slate-500 mt-2">
-                  Satis, stok, e-arsiv ve raporlar tek panelde senkron calisir.
+                  Satis, stok, e-arsiv, e-fatura ve medula tek panelde senkron calisir.
                 </p>
               </div>
 

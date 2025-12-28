@@ -103,4 +103,41 @@ router.patch("/:id", requirePharmacist, async (req, res) => {
   }
 });
 
+router.delete("/:id", requirePharmacist, async (req, res) => {
+  const userId = Number(req.params.id);
+
+  if (!userId) {
+    return res.status(400).json({ message: "Gecersiz kullanici" });
+  }
+
+  if (userId === req.user.userId) {
+    return res.status(400).json({ message: "Kendi hesabinizi silemezsiniz" });
+  }
+
+  try {
+    const existing = await prisma.user.findFirst({
+      where: { id: userId, pharmacyId: req.user.pharmacyId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: "Kullanici bulunamadi" });
+    }
+
+    if (existing.role === "PHARMACIST") {
+      const pharmacistCount = await prisma.user.count({
+        where: { pharmacyId: req.user.pharmacyId, role: "PHARMACIST" },
+      });
+      if (pharmacistCount <= 1) {
+        return res.status(400).json({ message: "Son eczaci silinemez" });
+      }
+    }
+
+    await prisma.user.delete({ where: { id: existing.id } });
+    return res.json({ message: "Kullanici silindi" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Kullanici silinemedi" });
+  }
+});
+
 export default router;

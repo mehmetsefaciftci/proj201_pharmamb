@@ -10,27 +10,21 @@ function requirePharmacist(req, res, next) {
   return next();
 }
 
-router.get("/revenue/daily", requirePharmacist, async (req, res) => {
-  const dateParam = req.query.date;
-  const start = dateParam ? new Date(dateParam) : new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(23, 59, 59, 999);
-
-  try {
-    const sales = await prisma.sale.findMany({
-      where: {
-        pharmacyId: req.user.pharmacyId,
-        status: "COMPLETED",
-        createdAt: { gte: start, lte: end },
-      },
-    });
-    const total = sales.reduce((sum, sale) => sum + Number(sale.total), 0);
-    res.json({ date: start.toISOString(), total });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Gunluk ciro getirilemedi" });
+function parseDateInput(value, isEnd) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  const base = trimmed.length === 10 ? new Date(`${trimmed}T00:00:00`) : new Date(trimmed);
+  if (Number.isNaN(base.getTime())) return null;
+  if (isEnd) {
+    base.setHours(23, 59, 59, 999);
+  } else {
+    base.setHours(0, 0, 0, 0);
   }
+  return base;
+}
+
+router.get("/revenue/daily", requirePharmacist, async (req, res) => {
+  res.status(403).json({ message: "Parola gerekli" });
 });
 
 router.get("/revenue/monthly", requirePharmacist, async (req, res) => {
@@ -96,6 +90,59 @@ router.get("/low-stock", requirePharmacist, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Kritik stok listesi getirilemedi" });
+  }
+});
+
+router.get("/sales-range", requirePharmacist, async (req, res) => {
+  const start = parseDateInput(req.query.start, false);
+  const end = parseDateInput(req.query.end, true);
+
+  if (!start || !end) {
+    return res.status(400).json({ message: "Baslangic ve bitis tarihi gerekli" });
+  }
+
+  if (start > end) {
+    return res.status(400).json({ message: "Baslangic tarihi bitisten buyuk olamaz" });
+  }
+
+  try {
+    const sales = await prisma.sale.findMany({
+      where: {
+        pharmacyId: req.user.pharmacyId,
+        createdAt: { gte: start, lte: end },
+      },
+      include: {
+        items: {
+          include: { product: { select: { name: true, barcode: true } } },
+        },
+        user: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const totalRevenue = sales
+      .filter((sale) => sale.status === "COMPLETED")
+      .reduce((sum, sale) => sum + Number(sale.total), 0);
+
+    const statusCounts = sales.reduce(
+      (acc, sale) => {
+        acc[sale.status] = (acc[sale.status] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
+
+    res.json({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      totalSales: sales.length,
+      totalRevenue,
+      statusCounts,
+      sales,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Tarih bazli satis raporu getirilemedi" });
   }
 });
 

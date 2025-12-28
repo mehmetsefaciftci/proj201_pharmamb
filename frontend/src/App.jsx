@@ -5,8 +5,11 @@ import Stock from "./pages/Stock";
 import Sales from "./pages/Sales";
 import Cash from "./pages/Cash";
 import Invoices from "./pages/Invoices";
+import Efatura from "./pages/Efatura";
 import Reports from "./pages/Reports";
 import Users from "./pages/Users";
+import Medula from "./pages/Medula";
+import Audit from "./pages/Audit";
 import Login from "./pages/Login";
 import { clearSession, getStoredUser } from "./services/api";
 
@@ -43,7 +46,10 @@ export default function App() {
       {page === "sales" && <Sales />}
       {page === "cash" && <Cash />}
       {page === "invoices" && <Invoices />}
+      {page === "efatura" && <Efatura />}
       {page === "reports" && <Reports />}
+      {page === "medula" && <Medula />}
+      {page === "audit" && <Audit />}
       {page === "users" && <Users />}
     </Layout>
   );
